@@ -37,6 +37,11 @@ alias h='history'         # История команд
 alias df='df -h'          # Показать дисковое пространство в человекочитаемом формате
 alias cls='clear'         # Очистка терминала
 alias R='ls -R'           # Посмотреть все директории с поддиректориями и файлами
+#my alias
+alias cleandown='/home/denis/My_bash_script/cleanup_downloads.sh'
+alias mvdir='/home/denis/My_bash_script/mvdir.sh'
+alias dlh='/home/denis/My_bash_script/downloader_http.sh'
+alias pss='ps -auxf'
 
 # Установить переменную PATH
 export PATH="$HOME/bin:$PATH:/usr/bin/python3"
