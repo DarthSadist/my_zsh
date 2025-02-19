@@ -67,6 +67,11 @@ alias cleandown='/home/denis/My_bash_script/cleanup_downloads.sh'
 alias mvdir='/home/denis/My_bash_script/mvdir.sh'
 alias dlh='/home/denis/My_bash_script/downloader_http.sh'
 alias pss='ps -auxf'
+alias ez='eza -la'
+alias szsh='source ~/.zshrc && echo "Конфигурация успешно обновлена" || echo "Ошибка при обновлении конфигурации"'
+alias sshprod='ssh root@83.136.232.149'
+alias sshstage='ssh root@78.24.220.136'
+alias n8n='ssh root@45.146.166.85'
 
 # Установить переменную PATH
 export PATH="$HOME/bin:$PATH:/usr/bin/python3"
@@ -94,3 +99,13 @@ setopt auto_menu            # Автоматически использоват�
 
 # Чтобы настроить приглашение, запустите p10k configure или отредактируйте ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# Установка XDG переменных
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_STATE_HOME="$HOME/.local/state"
+export XDG_CACHE_HOME="$HOME/.cache"
+export CARGO_HOME="$XDG_DATA_HOME/cargo"
+export DOTNET_CLI_HOME="$XDG_DATA_HOME/dotnet"
+eval "$(zoxide init zsh)"
+export PYTHONSTARTUP="$XDG_CONFIG_HOME/python/pythonrc"
