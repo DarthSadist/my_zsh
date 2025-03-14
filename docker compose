@@ -1,0 +1,115 @@
+version: "3"  # Используем версию 3 для доступа к новым функциям
+
+services:
+  traefik:
+    image: traefik:latest  # Указываем последнюю версию Traefik для воспроизводимости
+    restart: always
+    networks:
+      - default
+    command:
+      - "--api=true"  # Включаем API Traefik
+      - "--api.insecure=true"  # Разрешаем небезопасный доступ к API (для разработки)
+      - "--providers.docker=true"  # Используем Docker как провайдер конфигурации
+      - "--providers.docker.exposedbydefault=false"  # Не экспонируем сервисы по умолчанию
+      - "--entrypoints.web.address=:80"  # Определяем entrypoint для HTTP на порту 80
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"  # Перенаправляем HTTP на HTTPS
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"  # Указываем схему HTTPS для перенаправления
+      - "--entrypoints.websecure.address=:443"  # Определяем entrypoint для HTTPS на порту 443
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"  # Используем TLS challenge для получения сертификатов Let's Encrypt
+      - "--certificatesresolvers.mytlschallenge.acme.email=${SSL_EMAIL}"  # Указываем email для Let's Encrypt
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"  # Указываем путь для хранения данных Let's Encrypt
+    ports:
+      - "80:80"  # Пробрасываем порт 80 из контейнера на хост
+      - "443:443"  # Пробрасываем порт 443 из контейнера на хост
+    volumes:
+      - ${DATA_FOLDER}/letsencrypt:/letsencrypt  # Монтируем volume для хранения данных Let's Encrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Монтируем Docker socket для доступа к Docker API
+
+  n8n:
+    image: n8nio/n8n:latest  # Указываем последнюю версию n8n
+    restart: always  # Перезапускать контейнер, если он не был остановлен вручную
+    networks:
+      - default
+    ports:
+      - "127.0.0.1:5678:5678"  # Пробрасываем порт 5678 из контейнера на localhost
+    labels:  # Настройки для Traefik
+      - traefik.enable=true  # Включаем Traefik для этого сервиса
+      - traefik.http.routers.n8n.rule=Host(`${SUBDOMAIN}.${DOMAIN_NAME}`)  # Определяем правило маршрутизации по имени хоста
+      - traefik.http.routers.n8n.tls=true  # Включаем TLS для этого маршрута
+      - traefik.http.routers.n8n.entrypoints=web,websecure  # Указываем entrypoints для этого маршрута
+      - traefik.http.routers.n8n.tls.certresolver=mytlschallenge  # Используем TLS challenge для получения сертификатов
+      # Настройки безопасности заголовков
+      - traefik.http.middlewares.n8n.headers.SSLRedirect=true  # Перенаправляем HTTP на HTTPS
+      - traefik.http.middlewares.n8n.headers.STSSeconds=315360000  # Устанавливаем HSTS заголовок
+      - traefik.http.middlewares.n8n.headers.browserXSSFilter=true  # Включаем фильтр XSS
+      - traefik.http.middlewares.n8n.headers.contentTypeNosniff=true  # Включаем защиту от MIME sniffing
+      - traefik.http.middlewares.n8n.headers.forceSTSHeader=true  # Принудительно устанавливаем HSTS заголовок
+      - traefik.http.middlewares.n8n.headers.SSLHost=${DOMAIN_NAME}  # Устанавливаем заголовок Host для SSL
+      - traefik.http.middlewares.n8n.headers.STSIncludeSubdomains=true  # Включаем HSTS для поддоменов
+      - traefik.http.middlewares.n8n.headers.STSPreload=true  # Включаем preload для HSTS
+      - traefik.http.routers.n8n.middlewares=n8n@docker  # Применяем middleware к маршруту
+    environment:  # Переменные окружения для n8n
+      - N8N_BASIC_AUTH_ACTIVE=true  # Включаем базовую аутентификацию
+      - N8N_BASIC_AUTH_USER  # Имя пользователя
+      - N8N_BASIC_AUTH_PASSWORD  # Пароль
+      - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}  # Имя хоста для n8n
+      - N8N_PORT=5678  # Порт для n8n
+      - N8N_PROTOCOL=https  # Протокол для n8n
+      - NODE_ENV=production  # Устанавливаем режим production
+      - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/  # URL для webhook
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}  # Часовой пояс
+      - EXECUTIONS_PROCESS=main  # Процесс для выполнения workflows
+      - QUEUE_BULL_REDIS_HOST=redis  # Хост Redis для очереди
+      - QUEUE_BULL_REDIS_PORT=6379  # Порт Redis
+    #  - DB_TYPE=postgresdb  # Тип базы данных
+      - DB_HOST=postgres  # Хост Postgres (имя сервиса в docker-compose)
+      - DB_PORT=5432  # Порт Postgres
+      - DB_DATABASE=${POSTGRES_DB}  # Имя базы данных (переменная из окружения) 
+      - DB_USER=${POSTGRES_USER}  # Пользователь Postgres (переменная из окружения)
+      - DB_PASSWORD=${POSTGRES_PASSWORD}  # Пароль Postgres (переменная из окружения)
+    volumes:
+      - ${DATA_FOLDER}/.n8n:/home/node/.n8n  # Монтируем volume для хранения данных n8n
+      - /local-files:/files  # Монтируем volume для доступа к локальным файлам
+    #healthcheck:  # Проверка здоровья контейнера
+    #  test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]  # Проверяем доступность endpoint /healthz
+    #  interval: 30s  # Интервал проверки
+    #  timeout: 10s  # Таймаут проверки
+      #retries: 3  # Количество попыток
+
+  redis:
+    image: redis:latest  # Указываем последнюю версию Redis
+    restart: unless-stopped  # Перезапускать контейнер, если он не был остановлен вручную
+    networks:
+      - default
+    volumes:
+      - redis-data:/data  # Монтируем volume для хранения данных Redis
+    healthcheck:  # Проверка здоровья контейнера
+      test: ["CMD", "redis-cli", "ping"]  # Проверяем доступность Redis
+      interval: 10s  # Интервал проверки
+      timeout: 5s  # Таймаут проверки
+      retries: 2  # Количество попыток
+
+  postgres:
+    image: postgres:16  # Указываем последнюю версию PostgreSQL
+    restart: unless-stopped  # Перезапускать контейнер, если он не был остановлен вручную
+    networks:
+      - default
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}  # Имя пользователя PostgreSQL
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Пароль PostgreSQL
+      - POSTGRES_DB=${POSTGRES_DB}  # Имя базы данных PostgreSQL
+    volumes:
+      - postgres-data:/var/lib/postgresql/data  # Монтируем volume для хранения данных PostgreSQL
+      - ./init-data.sh:/docker-entrypoint-initdb.d/init-data.sh  # Монтируем скрипт для инициализации базы данных
+    ports:
+      - "127.0.0.1:5432:5432"  # Пробрасываем порт 5432 из контейнера на хост
+    healthcheck:  # Проверка здоровья контейнера
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]  # Проверяем доступность PostgreSQL
+      interval: 10s  # Интервал проверки
+      timeout: 5s  # Таймаут проверки
+      retries: 3  # Количество попыток
+#    entrypoint: ["/bin/bash", "/docker-entrypoint-initdb.d/init-data.sh"]
+
+volumes:
+  redis-data:  # Объявляем volume для Redis
+  postgres-data:  # Объявляем volume для PostgreSQL
