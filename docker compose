@@ -90,7 +90,7 @@ services:
       retries: 2  # Количество попыток
 
   postgres:
-    image: postgres:16  # Указываем последнюю версию PostgreSQL
+    image: pgvector/pgvector:pg16  # Указываем последнюю версию PostgreSQL
     restart: unless-stopped  # Перезапускать контейнер, если он не был остановлен вручную
     networks:
       - default
